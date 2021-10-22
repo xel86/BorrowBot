@@ -8,7 +8,7 @@ use twitch_irc::login::StaticLoginCredentials;
 use twitch_irc::message::ServerMessage;
 use twitch_irc::{ClientConfig, SecureTCPTransport, TwitchIRCClient};
 
-use crate::commands::CommandHandler;
+use crate::commandhandler::CommandHandler;
 use crate::database::DBController;
 use crate::messenger::Messenger;
 
@@ -75,7 +75,7 @@ impl BorrowBot {
                         let commands = bot.commands();
 
                         tokio::spawn(async move {
-                            let user_context = db.get_user_or_insert(&msg).await;
+                            let user_context = Arc::new(db.get_user_or_insert(&msg).await);
                             let command_response = commands.execute(bot, &user_context, &msg).await;
                             messenger
                                 .chat_response(&msg, &user_context, &command_response)
