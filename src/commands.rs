@@ -1,43 +1,36 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use crate::bot::BorrowBot;
 use crate::types::{PermissionLevel, UserContext};
 
 pub struct Command {
-    permission_needed: PermissionLevel,
-    global_cooldown: Duration,
-    user_cooldown: Duration,
-    source_function: String,
+    pub permission_needed: PermissionLevel,
+
+    // user cooldown denoted in seconds
+    pub user_cooldown: u64,
 }
 
 impl Command {
-    pub fn new(
-        permission_needed: PermissionLevel,
-        global_cooldown: Duration,
-        user_cooldown: Duration,
-        source_function: String,
-    ) -> Self {
+    pub fn new(permission_needed: PermissionLevel, user_cooldown: u64) -> Self {
         Command {
             permission_needed,
-            global_cooldown,
             user_cooldown,
-            source_function,
         }
     }
 
     pub async fn lookup_and_run(
         &self,
+        source_function: &str,
         params: std::str::Split<'_, char>,
-        bot: Arc<BorrowBot>,
+        source_bot: Arc<BorrowBot>,
         user_context: &UserContext,
     ) -> String {
-        match self.source_function.as_str() {
-            "ping" => ping(params, bot, user_context).await,
-            "bot_about" => bot_about(params, bot, user_context).await,
-            "greeting" => greeting(params, bot, user_context).await,
-            "test_expensive" => test_expensive(params, bot, user_context).await,
-            "setpermissions" => setpermissions(params, bot, user_context).await,
+        match source_function {
+            "ping" => ping(params, source_bot, user_context).await,
+            "bot" => bot(params, source_bot, user_context).await,
+            "greeting" => greeting(params, source_bot, user_context).await,
+            "expensive" => expensive(params, source_bot, user_context).await,
+            "setpermissions" => setpermissions(params, source_bot, user_context).await,
             _ => "".to_owned(),
         }
     }
@@ -56,7 +49,7 @@ pub async fn ping(_: std::str::Split<'_, char>, bot: Arc<BorrowBot>, _: &UserCon
     )
 }
 
-pub async fn bot_about(_: std::str::Split<'_, char>, _: Arc<BorrowBot>, _: &UserContext) -> String {
+pub async fn bot(_: std::str::Split<'_, char>, _: Arc<BorrowBot>, _: &UserContext) -> String {
     String::from("Bot made my 1xelerate. Written in Rust with Tokio, Postgresql, and Rander's Twitch IRC library.")
 }
 
@@ -72,17 +65,9 @@ pub async fn greeting(
     }
 }
 
-pub async fn test_expensive(
-    _: std::str::Split<'_, char>,
-    _: Arc<BorrowBot>,
-    user_context: &UserContext,
-) -> String {
-    if let PermissionLevel::Superuser = user_context.permissions {
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-        "Test expensive command finished".to_owned()
-    } else {
-        "You don't have the permission to do that!".to_owned()
-    }
+pub async fn expensive(_: std::str::Split<'_, char>, _: Arc<BorrowBot>, _: &UserContext) -> String {
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    "Test expensive command finished".to_owned()
 }
 
 // raw manipulation of data columns and value inside postgres database
@@ -90,12 +75,8 @@ pub async fn test_expensive(
 pub async fn setpermissions(
     params: std::str::Split<'_, char>,
     bot: Arc<BorrowBot>,
-    user_context: &UserContext,
+    _: &UserContext,
 ) -> String {
-    if let PermissionLevel::Moderator | PermissionLevel::User = user_context.permissions {
-        return "Sorry, only superusers have access to the set commands!".to_owned();
-    }
-
     let mut params = params;
     let target_user = params.next().unwrap_or("").to_lowercase();
     if target_user.is_empty() {
