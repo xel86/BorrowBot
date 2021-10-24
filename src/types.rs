@@ -42,6 +42,8 @@ impl PermissionLevel {
         }
     }
 
+    // checks if the permission level 'self' is equal too or supersedes 'permission_needed'
+    // essentially a greater/less than or equal to comparison for PermissionLevel enums
     pub fn satisfies(self, permission_needed: PermissionLevel) -> bool {
         match self {
             PermissionLevel::Superuser => true,

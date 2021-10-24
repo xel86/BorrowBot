@@ -17,6 +17,7 @@ pub struct BorrowBot {
     db: Arc<DBController>,
     commands: Arc<CommandHandler>,
     messenger: Arc<Messenger>,
+    current_channels: Arc<Mutex<HashSet<String>>>,
     pub start_time: chrono::naive::NaiveTime,
 }
 
@@ -34,13 +35,15 @@ impl BorrowBot {
         let db = Arc::new(DBController::new().await);
         let commands = Arc::new(CommandHandler::new());
         let messenger = Arc::new(Messenger::new(irc_client));
-
+        let current_channels = Arc::new(Mutex::new(db.get_current_channels().await));
         let start_time = Utc::now().time();
+
         Self {
             irc_stream: Arc::new(Mutex::new(irc_stream)),
             db,
             commands,
             messenger,
+            current_channels,
             start_time,
         }
     }
@@ -61,14 +64,18 @@ impl BorrowBot {
         Arc::clone(&self.commands)
     }
 
-    pub async fn run(bot_self: Arc<BorrowBot>, wanted_channels: HashSet<String>) {
+    pub fn current_channels(&self) -> Arc<Mutex<HashSet<String>>> {
+        Arc::clone(&self.current_channels)
+    }
+
+    pub async fn run(bot_self: Arc<BorrowBot>) {
         let bot = Arc::clone(&bot_self);
         bot.messenger().sender_loop();
 
         let join_handle = tokio::spawn(async move {
             while let Some(raw_message) = bot.stream().lock().await.recv().await {
                 if let ServerMessage::Privmsg(msg) = raw_message {
-                    if msg.message_text.starts_with("b!") {
+                    if msg.message_text.starts_with("&") {
                         let bot = Arc::clone(&bot);
                         let messenger = bot.messenger();
                         let db = bot.db();
@@ -86,10 +93,19 @@ impl BorrowBot {
             }
         });
 
+        let current_channels_mutex = bot_self.current_channels();
+        let current_channels_guard = current_channels_mutex.lock().await;
         bot_self
             .messenger()
             .client()
-            .set_wanted_channels(wanted_channels);
+            .set_wanted_channels((*current_channels_guard).clone());
+
+        //bot_self
+        //    .messenger()
+        //    .send_join_messages(&(*current_channels_guard))
+        //    .await;
+        drop(current_channels_guard);
+
         join_handle.await.unwrap();
     }
 }

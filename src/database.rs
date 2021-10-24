@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use tokio_postgres::NoTls;
 use twitch_irc::message::PrivmsgMessage;
 
@@ -21,6 +23,31 @@ impl DBController {
         });
 
         DBController { client }
+    }
+
+    pub async fn get_current_channels(&self) -> HashSet<String> {
+        let rows = self
+            .client
+            .query("SELECT channel FROM channels", &[])
+            .await
+            .unwrap();
+
+        let mut current_channels = HashSet::new();
+        for row in &rows {
+            current_channels.insert(row.get(0));
+        }
+
+        current_channels
+    }
+
+    pub async fn insert_new_channel(&self, channel: &String) {
+        self.client
+            .execute(
+                "INSERT INTO channels (channel) VALUES ($1) ON CONFLICT DO NOTHING",
+                &[channel],
+            )
+            .await
+            .unwrap();
     }
 
     pub async fn get_user_or_insert(&self, msg: &PrivmsgMessage) -> UserContext {

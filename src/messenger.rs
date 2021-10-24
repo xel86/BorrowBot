@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
@@ -25,6 +25,13 @@ impl Messenger {
 
     pub fn client(&self) -> Arc<TwitchIRCClient<SecureTCPTransport, StaticLoginCredentials>> {
         Arc::clone(&self.irc_client)
+    }
+
+    pub async fn send_join_messages(&self, channels: &HashSet<String>) {
+        for channel in channels {
+            let mut queue = self.message_queue.lock().await;
+            (*queue).insert(0, ((*channel).clone(), "🚨".to_owned()));
+        }
     }
 
     pub async fn chat_response(
@@ -66,8 +73,9 @@ impl Messenger {
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                if let Some((target_user, response)) = (*message_queue.lock().await).pop_front() {
-                    irc_client.say(target_user, response).await.unwrap();
+                if let Some((target_channel, response)) = (*message_queue.lock().await).pop_front()
+                {
+                    irc_client.say(target_channel, response).await.unwrap();
                 }
             }
         });
