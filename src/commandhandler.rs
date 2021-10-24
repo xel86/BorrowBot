@@ -88,6 +88,14 @@ impl CommandHandler {
                 5,
             ),
         );
+        command_list.insert(
+            "leave".to_owned(),
+            Command::new(
+                "Makes BorrowBot leave a channel, which persists after restart".to_owned(),
+                PermissionLevel::Superuser,
+                5,
+            ),
+        );
 
         let user_cooldowns = Arc::new(RwLock::new(Vec::new()));
 

@@ -36,6 +36,7 @@ impl Command {
             "expensive" => expensive(params, source_bot, user_context).await,
             "setpermissions" => setpermissions(params, source_bot, user_context).await,
             "join" => join(params, source_bot, user_context).await,
+            "leave" => leave(params, source_bot, user_context).await,
             _ => "".to_owned(),
         }
     }
@@ -162,7 +163,9 @@ async fn join(
         return "Please provide a channel to join".to_owned();
     }
 
-    bot.db().insert_new_channel(&target_channel).await;
+    bot.db()
+        .modify_or_insert_joined_value(&target_channel, true)
+        .await;
 
     let current_channels_mutex = bot.current_channels();
     let mut current_channels_guard = current_channels_mutex.lock().await;
@@ -191,5 +194,30 @@ async fn leave(
     bot: Arc<BorrowBot>,
     _: &UserContext,
 ) -> String {
-    todo!();
+    // TODO: VERIFY IF CHANNEL EXISTS?
+    let target_channel = params.next().unwrap_or("").to_lowercase();
+    if target_channel.is_empty() {
+        return "Please provide a channel to leave".to_owned();
+    }
+
+    bot.db()
+        .modify_or_insert_joined_value(&target_channel, false)
+        .await;
+
+    let current_channels_mutex = bot.current_channels();
+    let mut current_channels_guard = current_channels_mutex.lock().await;
+
+    if !(*current_channels_guard).contains(&target_channel) {
+        return format!("I'm not currently in channel {}!", target_channel);
+    }
+
+    (*current_channels_guard).remove(&target_channel);
+    bot.messenger()
+        .client()
+        .set_wanted_channels((*current_channels_guard).clone());
+    drop(current_channels_guard);
+
+    // leave message?
+
+    format!("Succesfully left channel {}", target_channel)
 }

@@ -28,7 +28,7 @@ impl DBController {
     pub async fn get_current_channels(&self) -> HashSet<String> {
         let rows = self
             .client
-            .query("SELECT channel FROM channels", &[])
+            .query("SELECT channel FROM channels WHERE joined = true", &[])
             .await
             .unwrap();
 
@@ -40,11 +40,14 @@ impl DBController {
         current_channels
     }
 
-    pub async fn insert_new_channel(&self, channel: &String) {
+    // Used for join & leave commands, if joining a channel that is not in the database already, it
+    // will insert it with the value of true for joined
+    pub async fn modify_or_insert_joined_value(&self, channel: &String, new_joined_value: bool) {
         self.client
             .execute(
-                "INSERT INTO channels (channel) VALUES ($1) ON CONFLICT DO NOTHING",
-                &[channel],
+                "INSERT INTO channels (channel, joined) VALUES ($1, $2) \
+                ON CONFLICT (channel) DO UPDATE SET joined = $2",
+                &[channel, &new_joined_value],
             )
             .await
             .unwrap();
