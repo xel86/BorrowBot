@@ -37,6 +37,7 @@ impl Command {
             "setpermissions" => setpermissions(params, source_bot, user_context).await,
             "join" => join(params, source_bot, user_context).await,
             "leave" => leave(params, source_bot, user_context).await,
+            "uid" => uid(params, source_bot, user_context).await,
             _ => "".to_owned(),
         }
     }
@@ -157,10 +158,18 @@ async fn join(
     bot: Arc<BorrowBot>,
     _: &UserContext,
 ) -> String {
-    // TODO: VERIFY IF CHANNEL EXISTS?
     let target_channel = params.next().unwrap_or("").to_lowercase();
     if target_channel.is_empty() {
         return "Please provide a channel to join".to_owned();
+    }
+
+    if let Ok(resp) = bot.helix().get_user_by_login(&target_channel[..]).await {
+        if let None = resp {
+            return format!("Sorry, I couldn't find channel {}", target_channel);
+        }
+    } else {
+        return "Unable to verify if that channel exists, join aborted; Twitch API error"
+            .to_owned();
     }
 
     bot.db()
@@ -220,4 +229,25 @@ async fn leave(
     // leave message?
 
     format!("Succesfully left channel {}", target_channel)
+}
+
+async fn uid(
+    mut params: std::str::Split<'_, char>,
+    bot: Arc<BorrowBot>,
+    user_context: &UserContext,
+) -> String {
+    let target_user = params.next().unwrap_or("").to_lowercase();
+    if target_user.is_empty() {
+        return format!("{}", user_context.uid);
+    }
+
+    if let Ok(resp) = bot.helix().get_user_by_login(&target_user[..]).await {
+        if let Some(user) = resp {
+            format!("{}", user.id)
+        } else {
+            format!("Sorry, I couldn't find user {}", target_user)
+        }
+    } else {
+        "Unable to fetch uid; Twitch API error".to_owned()
+    }
 }

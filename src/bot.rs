@@ -8,6 +8,7 @@ use twitch_irc::login::StaticLoginCredentials;
 use twitch_irc::message::ServerMessage;
 use twitch_irc::{ClientConfig, SecureTCPTransport, TwitchIRCClient};
 
+use crate::api::helix::Helix;
 use crate::commandhandler::CommandHandler;
 use crate::database::DBController;
 use crate::messenger::Messenger;
@@ -19,13 +20,22 @@ pub struct BorrowBot {
     messenger: Arc<Messenger>,
     current_channels: Arc<Mutex<HashSet<String>>>,
     pub start_time: chrono::naive::NaiveTime,
+
+    // API Controllers
+    helix: Arc<Helix>,
 }
 
 impl BorrowBot {
     pub async fn new() -> Self {
         let name = "borrowbot".to_owned();
         let oauth =
-            env::var("BORROWBOT_OAUTH").expect("Couldn't find environment variable for bot oauth");
+            env::var("BORROWBOT_OAUTH").expect("Error finding env variable for Bot TMI OAuth");
+
+        let helix = Arc::new(
+            Helix::new()
+                .await
+                .expect("Error retrieving access token from twitch"),
+        );
 
         let config = ClientConfig::new_simple(StaticLoginCredentials::new(name, Some(oauth)));
 
@@ -45,6 +55,7 @@ impl BorrowBot {
             messenger,
             current_channels,
             start_time,
+            helix,
         }
     }
 
@@ -66,6 +77,10 @@ impl BorrowBot {
 
     pub fn current_channels(&self) -> Arc<Mutex<HashSet<String>>> {
         Arc::clone(&self.current_channels)
+    }
+
+    pub fn helix(&self) -> Arc<Helix> {
+        Arc::clone(&self.helix)
     }
 
     pub async fn run(bot_self: Arc<BorrowBot>) {

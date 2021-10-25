@@ -96,6 +96,14 @@ impl CommandHandler {
                 5,
             ),
         );
+        command_list.insert(
+            "uid".to_owned(),
+            Command::new(
+                "Returns the uid of the user specified, or the uid of the sender if no one specified".to_owned(),
+                PermissionLevel::User,
+                5,
+            ),
+        );
 
         let user_cooldowns = Arc::new(RwLock::new(Vec::new()));
 
