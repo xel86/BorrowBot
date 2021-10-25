@@ -38,6 +38,7 @@ impl Command {
             "join" => join(params, source_bot, user_context).await,
             "leave" => leave(params, source_bot, user_context).await,
             "uid" => uid(params, source_bot, user_context).await,
+            "say" => say(params, source_bot, user_context).await,
             _ => "".to_owned(),
         }
     }
@@ -139,7 +140,7 @@ async fn setpermissions(
             }
 
             format!(
-                "Succesfully set {}'s {} column, to {}",
+                "Succesfully set {}'s {} column to {}",
                 &target_user, "permissions", &target_value
             )
         }
@@ -250,4 +251,14 @@ async fn uid(
     } else {
         "Unable to fetch uid; Twitch API error".to_owned()
     }
+}
+
+async fn say(params: std::str::Split<'_, char>, _: Arc<BorrowBot>, _: &UserContext) -> String {
+    let mut phrase = String::new();
+    for word in params {
+        phrase.push_str(word);
+        phrase.push(' ');
+    }
+
+    phrase
 }

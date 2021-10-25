@@ -1,9 +1,10 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use tokio_postgres::NoTls;
 use twitch_irc::message::PrivmsgMessage;
 
-use crate::types::UserContext;
+use crate::commands::Command;
+use crate::types::{PermissionLevel, UserContext};
 
 pub struct DBController {
     client: tokio_postgres::Client,
@@ -38,6 +39,29 @@ impl DBController {
         }
 
         current_channels
+    }
+
+    pub async fn get_current_commands(&self) -> HashMap<String, Command> {
+        let rows = self
+            .client
+            .query("SELECT * FROM commands", &[])
+            .await
+            .unwrap();
+
+        let mut current_commands = HashMap::new();
+        for row in &rows {
+            let command_name: String = row.get(0);
+            let about: String = row.get(1);
+            let permission_needed = PermissionLevel::new(row.get(2));
+            let user_cooldown: i32 = row.get(3);
+
+            current_commands.insert(
+                command_name,
+                Command::new(about, permission_needed, user_cooldown as u64),
+            );
+        }
+
+        current_commands
     }
 
     // Used for join & leave commands, if joining a channel that is not in the database already, it

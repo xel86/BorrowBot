@@ -6,16 +6,8 @@ use twitch_irc::message::PrivmsgMessage;
 
 use crate::bot::BorrowBot;
 use crate::commands::Command;
+use crate::database::DBController;
 use crate::types::{PermissionLevel, UserContext};
-
-// go function pointer route ?
-//type AsyncCommandFunction = Arc<
-//    dyn Fn(
-//        Arc<std::str::Split<'static, char>>,
-//        Arc<BorrowBot>,
-//        Arc<UserContext>,
-//    ) -> Pin<Arc<dyn Future<Output = String> + Send + Sync>>,
-//>;
 
 pub struct CommandHandler {
     pub command_list: HashMap<String, Command>,
@@ -23,88 +15,8 @@ pub struct CommandHandler {
 }
 
 impl CommandHandler {
-    pub fn new() -> Self {
-        let mut command_list: HashMap<String, Command> = HashMap::new();
-        command_list.insert(
-            "help".to_owned(),
-            Command::new(
-                "With no arguments provided, returns all available commands. \
-                If provided with a name of a command it will return a short summary of the command"
-                    .to_owned(),
-                PermissionLevel::User,
-                5,
-            ),
-        );
-        command_list.insert(
-            "ping".to_owned(),
-            Command::new(
-                "Returns the a message indicating the bot is running, \
-                and some statistics about the bot"
-                    .to_owned(),
-                PermissionLevel::User,
-                5,
-            ),
-        );
-        command_list.insert(
-            "bot".to_owned(),
-            Command::new(
-                "Returns information about the bot, such as the author and language it was made in"
-                    .to_owned(),
-                PermissionLevel::User,
-                5,
-            ),
-        );
-        command_list.insert(
-            "greeting".to_owned(),
-            Command::new(
-                "Returns a greeting based on your permission level".to_owned(),
-                PermissionLevel::User,
-                5,
-            ),
-        );
-        command_list.insert(
-            "expensive".to_owned(),
-            Command::new(
-                "Runs a command that sleeps for 5 seconds to test await functionality".to_owned(),
-                PermissionLevel::Moderator,
-                5,
-            ),
-        );
-        command_list.insert(
-            "setpermissions".to_owned(),
-            Command::new(
-                "Sets the permission value for a user in the postgresql database \
-                associated with the bot"
-                    .to_owned(),
-                PermissionLevel::Superuser,
-                5,
-            ),
-        );
-        command_list.insert(
-            "join".to_owned(),
-            Command::new(
-                "Makes BorrowBot join a channel, which persists after restart".to_owned(),
-                PermissionLevel::Superuser,
-                5,
-            ),
-        );
-        command_list.insert(
-            "leave".to_owned(),
-            Command::new(
-                "Makes BorrowBot leave a channel, which persists after restart".to_owned(),
-                PermissionLevel::Superuser,
-                5,
-            ),
-        );
-        command_list.insert(
-            "uid".to_owned(),
-            Command::new(
-                "Returns the uid of the user specified, or the uid of the sender if no one specified".to_owned(),
-                PermissionLevel::User,
-                5,
-            ),
-        );
-
+    pub async fn new(db: Arc<DBController>) -> Self {
+        let command_list = db.get_current_commands().await;
         let user_cooldowns = Arc::new(RwLock::new(Vec::new()));
 
         CommandHandler {

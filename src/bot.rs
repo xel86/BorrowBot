@@ -43,7 +43,7 @@ impl BorrowBot {
             TwitchIRCClient::<SecureTCPTransport, StaticLoginCredentials>::new(config);
 
         let db = Arc::new(DBController::new().await);
-        let commands = Arc::new(CommandHandler::new());
+        let commands = Arc::new(CommandHandler::new(Arc::clone(&db)).await);
         let messenger = Arc::new(Messenger::new(irc_client));
         let current_channels = Arc::new(Mutex::new(db.get_current_channels().await));
         let start_time = Utc::now().time();
