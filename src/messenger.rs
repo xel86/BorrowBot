@@ -65,26 +65,22 @@ impl Messenger {
             user_context.login, response, same_message_modifier
         );
 
-        if questionable_output {
+        let ensured_response = if questionable_output {
             if let Ok(is_banned) = banphrase::contains_banphrase(&response).await {
                 if !is_banned {
-                    let mut queue = self.message_queue.lock().await;
-                    (*queue).insert(0, (msg.channel_login.clone(), response));
+                    response
+                } else {
+                    "Uh oh, the anticipated response contained a banphrase monkaS".to_owned()
                 }
             } else {
-                let mut queue = self.message_queue.lock().await;
-                (*queue).insert(
-                    0,
-                    (
-                        msg.channel_login.clone(),
-                        "Couldn't reach banphrase API monkaS".to_owned(),
-                    ),
-                );
+                "Couldn't reach banphrase API monkaS".to_owned()
             }
         } else {
-            let mut queue = self.message_queue.lock().await;
-            (*queue).insert(0, (msg.channel_login.clone(), response));
-        }
+            response
+        };
+
+        let mut queue = self.message_queue.lock().await;
+        (*queue).insert(0, (msg.channel_login.clone(), ensured_response));
     }
 
     // adhere to global 1 second cooldown
