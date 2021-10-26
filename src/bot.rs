@@ -8,7 +8,7 @@ use twitch_irc::login::StaticLoginCredentials;
 use twitch_irc::message::ServerMessage;
 use twitch_irc::{ClientConfig, SecureTCPTransport, TwitchIRCClient};
 
-use crate::api::helix::Helix;
+use crate::api::APIController;
 use crate::commandhandler::CommandHandler;
 use crate::database::DBController;
 use crate::messenger::Messenger;
@@ -16,13 +16,11 @@ use crate::messenger::Messenger;
 pub struct BorrowBot {
     irc_stream: Arc<Mutex<tokio::sync::mpsc::UnboundedReceiver<ServerMessage>>>,
     db: Arc<DBController>,
+    api: Arc<APIController>,
     commands: Arc<CommandHandler>,
     messenger: Arc<Messenger>,
     current_channels: Arc<Mutex<HashSet<String>>>,
     pub start_time: chrono::naive::NaiveTime,
-
-    // API Controllers
-    helix: Arc<Helix>,
 }
 
 impl BorrowBot {
@@ -31,18 +29,13 @@ impl BorrowBot {
         let oauth =
             env::var("BORROWBOT_OAUTH").expect("Error finding env variable for Bot TMI OAuth");
 
-        let helix = Arc::new(
-            Helix::new()
-                .await
-                .expect("Error retrieving access token from twitch"),
-        );
-
         let config = ClientConfig::new_simple(StaticLoginCredentials::new(name, Some(oauth)));
 
         let (irc_stream, irc_client) =
             TwitchIRCClient::<SecureTCPTransport, StaticLoginCredentials>::new(config);
 
         let db = Arc::new(DBController::new().await);
+        let api = Arc::new(APIController::init().await);
         let commands = Arc::new(CommandHandler::new(Arc::clone(&db)).await);
         let messenger = Arc::new(Messenger::new(irc_client));
         let current_channels = Arc::new(Mutex::new(db.get_current_channels().await));
@@ -51,11 +44,11 @@ impl BorrowBot {
         Self {
             irc_stream: Arc::new(Mutex::new(irc_stream)),
             db,
+            api,
             commands,
             messenger,
             current_channels,
             start_time,
-            helix,
         }
     }
 
@@ -71,16 +64,16 @@ impl BorrowBot {
         Arc::clone(&self.db)
     }
 
+    pub fn api(&self) -> Arc<APIController> {
+        Arc::clone(&self.api)
+    }
+
     pub fn commands(&self) -> Arc<CommandHandler> {
         Arc::clone(&self.commands)
     }
 
     pub fn current_channels(&self) -> Arc<Mutex<HashSet<String>>> {
         Arc::clone(&self.current_channels)
-    }
-
-    pub fn helix(&self) -> Arc<Helix> {
-        Arc::clone(&self.helix)
     }
 
     pub async fn run(bot_self: Arc<BorrowBot>) {
@@ -120,6 +113,8 @@ impl BorrowBot {
         //    .send_join_messages(&(*current_channels_guard))
         //    .await;
         drop(current_channels_guard);
+
+        bot_self.api().supinic().start_supinic_ping_loop().await;
 
         join_handle.await.unwrap();
     }

@@ -216,7 +216,12 @@ async fn join(
         };
     }
 
-    if let Ok(resp) = bot.helix().get_user_by_login(&target_channel[..]).await {
+    if let Ok(resp) = bot
+        .api()
+        .helix()
+        .get_user_by_login(&target_channel[..])
+        .await
+    {
         if let None = resp {
             return CommandResponse {
                 response: "Sorry, I couldn't find that channel {}".to_owned(),
@@ -318,7 +323,7 @@ async fn uid(
         };
     }
 
-    let response = if let Ok(resp) = bot.helix().get_user_by_login(&target_user[..]).await {
+    let response = if let Ok(resp) = bot.api().helix().get_user_by_login(&target_user[..]).await {
         if let Some(user) = resp {
             format!("{}", user.id)
         } else {
