@@ -22,6 +22,23 @@ pub enum PermissionLevel {
     Superuser,
 }
 
+pub struct CommandResponse {
+    pub response: String,
+
+    // Can the output contain a banphrase?
+    // i.e. can the user manipulate the response in a non-controlled way
+    pub questionable_output: bool,
+}
+
+impl CommandResponse {
+    pub fn new(response: String, questionable_output: bool) -> Self {
+        Self {
+            response,
+            questionable_output,
+        }
+    }
+}
+
 impl std::fmt::Display for PermissionLevel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {

@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::bot::BorrowBot;
-use crate::types::{PermissionLevel, UserContext};
+use crate::types::{CommandResponse, PermissionLevel, UserContext};
 
 pub struct Command {
     pub about: String,
@@ -27,7 +27,7 @@ impl Command {
         params: std::str::Split<'_, char>,
         source_bot: Arc<BorrowBot>,
         user_context: &UserContext,
-    ) -> String {
+    ) -> CommandResponse {
         match source_function {
             "help" => help(params, source_bot, user_context).await,
             "ping" => ping(params, source_bot, user_context).await,
@@ -39,7 +39,7 @@ impl Command {
             "leave" => leave(params, source_bot, user_context).await,
             "uid" => uid(params, source_bot, user_context).await,
             "say" => say(params, source_bot, user_context).await,
-            _ => "".to_owned(),
+            _ => CommandResponse::new("".to_owned(), false),
         }
     }
 }
@@ -48,18 +48,16 @@ async fn help(
     mut params: std::str::Split<'_, char>,
     bot: Arc<BorrowBot>,
     _: &UserContext,
-) -> String {
+) -> CommandResponse {
     let target_command = params.next().unwrap_or("").to_lowercase();
     let command_list = &bot.commands().command_list;
 
-    if !target_command.is_empty() {
+    let response = if !target_command.is_empty() {
         match command_list.get(&target_command) {
             Some(command) => {
                 format!("&{}: {}", target_command, command.about)
             }
-            None => {
-                format!("Sorry, I don't know the command {}", target_command)
-            }
+            None => "Sorry, I don't know that command".to_owned(),
         }
     } else {
         let mut response = String::from("List of available commands: ");
@@ -70,41 +68,78 @@ async fn help(
         response.truncate(response.len() - 2);
 
         response
+    };
+
+    CommandResponse {
+        response,
+        questionable_output: false,
     }
 }
 
-async fn ping(_: std::str::Split<'_, char>, bot: Arc<BorrowBot>, _: &UserContext) -> String {
+async fn ping(
+    _: std::str::Split<'_, char>,
+    bot: Arc<BorrowBot>,
+    _: &UserContext,
+) -> CommandResponse {
     let uptime = chrono::Utc::now().time() - bot.start_time;
 
     let days = uptime.num_days();
     let hours = uptime.num_hours() - (days * 24);
     let minutes = uptime.num_minutes() - ((days * 1440) + (hours * 60));
     let seconds = uptime.num_seconds() - ((days * 86400) + (hours * 3600) + (minutes * 60));
-    format!(
+
+    let response = format!(
         "Pong! Uptime: {}d, {}h, {}m, {}s",
         days, hours, minutes, seconds
-    )
+    );
+
+    CommandResponse {
+        response,
+        questionable_output: false,
+    }
 }
 
-async fn bot(_: std::str::Split<'_, char>, _: Arc<BorrowBot>, _: &UserContext) -> String {
-    String::from("Bot made my 1xelerate. Written in Rust with Tokio, Postgresql, and Rander's Twitch IRC library.")
+async fn bot(_: std::str::Split<'_, char>, _: Arc<BorrowBot>, _: &UserContext) -> CommandResponse {
+    let response = String::from(
+        "Bot made my 1xelerate. \
+        Written in Rust with Tokio, Postgresql, and Rander's Twitch IRC library.",
+    );
+
+    CommandResponse {
+        response,
+        questionable_output: false,
+    }
 }
 
 async fn greeting(
     _: std::str::Split<'_, char>,
     _: Arc<BorrowBot>,
     user_context: &UserContext,
-) -> String {
-    match user_context.permissions {
+) -> CommandResponse {
+    let response = match user_context.permissions {
         PermissionLevel::Superuser => "Greetings superuser".to_owned(),
         PermissionLevel::Moderator => "Hello moderator".to_owned(),
         PermissionLevel::User => "What's good".to_owned(),
+    };
+
+    CommandResponse {
+        response,
+        questionable_output: false,
     }
 }
 
-async fn expensive(_: std::str::Split<'_, char>, _: Arc<BorrowBot>, _: &UserContext) -> String {
+async fn expensive(
+    _: std::str::Split<'_, char>,
+    _: Arc<BorrowBot>,
+    _: &UserContext,
+) -> CommandResponse {
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-    "Test expensive command finished".to_owned()
+    let response = "Test expensive command finished".to_owned();
+
+    CommandResponse {
+        response,
+        questionable_output: false,
+    }
 }
 
 // raw manipulation of data columns and value inside postgres database
@@ -113,19 +148,25 @@ async fn setpermissions(
     mut params: std::str::Split<'_, char>,
     bot: Arc<BorrowBot>,
     _: &UserContext,
-) -> String {
+) -> CommandResponse {
     let target_user = params.next().unwrap_or("").to_lowercase();
     if target_user.is_empty() {
-        return "Please provide a username after the set command!".to_owned();
+        return CommandResponse {
+            response: "Please provide a username after the set command!".to_owned(),
+            questionable_output: false,
+        };
     }
 
     let target_value: i32 = params.next().unwrap_or("").parse().unwrap_or(-1);
     if target_value == -1 {
-        return "Error parsing value to be set, please give an integer after the username!"
-            .to_owned();
+        return CommandResponse {
+            response: "Error parsing value to be set, please give an integer after the username!"
+                .to_owned(),
+            questionable_output: false,
+        };
     }
 
-    match bot
+    let response = match bot
         .db()
         .try_set_column_by_name(
             &target_user.to_owned(),
@@ -136,7 +177,10 @@ async fn setpermissions(
     {
         Ok(rows) => {
             if rows == 0 {
-                return "Sorry, that user wasn't found in my database!".to_owned();
+                return CommandResponse {
+                    response: "Sorry, that user wasn't found in my database!".to_owned(),
+                    questionable_output: false,
+                };
             }
 
             format!(
@@ -151,6 +195,11 @@ async fn setpermissions(
                 "permissions", &target_value
             )
         }
+    };
+
+    CommandResponse {
+        response,
+        questionable_output: false,
     }
 }
 
@@ -158,19 +207,28 @@ async fn join(
     mut params: std::str::Split<'_, char>,
     bot: Arc<BorrowBot>,
     _: &UserContext,
-) -> String {
+) -> CommandResponse {
     let target_channel = params.next().unwrap_or("").to_lowercase();
     if target_channel.is_empty() {
-        return "Please provide a channel to join".to_owned();
+        return CommandResponse {
+            response: "Please provide a channel to join".to_owned(),
+            questionable_output: false,
+        };
     }
 
     if let Ok(resp) = bot.helix().get_user_by_login(&target_channel[..]).await {
         if let None = resp {
-            return format!("Sorry, I couldn't find channel {}", target_channel);
+            return CommandResponse {
+                response: "Sorry, I couldn't find that channel {}".to_owned(),
+                questionable_output: false,
+            };
         }
     } else {
-        return "Unable to verify if that channel exists, join aborted; Twitch API error"
-            .to_owned();
+        return CommandResponse {
+            response: "Unable to verify if that channel exists, join aborted; Twitch API error"
+                .to_owned(),
+            questionable_output: false,
+        };
     }
 
     bot.db()
@@ -181,7 +239,10 @@ async fn join(
     let mut current_channels_guard = current_channels_mutex.lock().await;
 
     if (*current_channels_guard).contains(&target_channel) {
-        return format!("I've already joined channel {}!", target_channel);
+        return CommandResponse {
+            response: "I've already joined that channel".to_owned(),
+            questionable_output: false,
+        };
     }
 
     (*current_channels_guard).insert(target_channel.clone());
@@ -196,18 +257,24 @@ async fn join(
         .send_join_messages(&new_joined_channel)
         .await;
 
-    format!("Succesfully joined channel {}", target_channel)
+    CommandResponse {
+        response: "Succesfully joined channel".to_owned(),
+        questionable_output: false,
+    }
 }
 
 async fn leave(
     mut params: std::str::Split<'_, char>,
     bot: Arc<BorrowBot>,
     _: &UserContext,
-) -> String {
+) -> CommandResponse {
     // TODO: VERIFY IF CHANNEL EXISTS?
     let target_channel = params.next().unwrap_or("").to_lowercase();
     if target_channel.is_empty() {
-        return "Please provide a channel to leave".to_owned();
+        return CommandResponse {
+            response: "Please provide a channel to leave".to_owned(),
+            questionable_output: false,
+        };
     }
 
     bot.db()
@@ -218,7 +285,10 @@ async fn leave(
     let mut current_channels_guard = current_channels_mutex.lock().await;
 
     if !(*current_channels_guard).contains(&target_channel) {
-        return format!("I'm not currently in channel {}!", target_channel);
+        return CommandResponse {
+            response: "I'm not currently in that channel!".to_owned(),
+            questionable_output: false,
+        };
     }
 
     (*current_channels_guard).remove(&target_channel);
@@ -229,36 +299,54 @@ async fn leave(
 
     // leave message?
 
-    format!("Succesfully left channel {}", target_channel)
+    CommandResponse {
+        response: "Succesfully left channel".to_owned(),
+        questionable_output: false,
+    }
 }
 
 async fn uid(
     mut params: std::str::Split<'_, char>,
     bot: Arc<BorrowBot>,
     user_context: &UserContext,
-) -> String {
+) -> CommandResponse {
     let target_user = params.next().unwrap_or("").to_lowercase();
     if target_user.is_empty() {
-        return format!("{}", user_context.uid);
+        return CommandResponse {
+            response: format!("{}", user_context.uid),
+            questionable_output: false,
+        };
     }
 
-    if let Ok(resp) = bot.helix().get_user_by_login(&target_user[..]).await {
+    let response = if let Ok(resp) = bot.helix().get_user_by_login(&target_user[..]).await {
         if let Some(user) = resp {
             format!("{}", user.id)
         } else {
-            format!("Sorry, I couldn't find user {}", target_user)
+            "Sorry, I couldn't find user".to_owned()
         }
     } else {
         "Unable to fetch uid; Twitch API error".to_owned()
+    };
+
+    CommandResponse {
+        response,
+        questionable_output: false,
     }
 }
 
-async fn say(params: std::str::Split<'_, char>, _: Arc<BorrowBot>, _: &UserContext) -> String {
+async fn say(
+    params: std::str::Split<'_, char>,
+    _: Arc<BorrowBot>,
+    _: &UserContext,
+) -> CommandResponse {
     let mut phrase = String::new();
     for word in params {
         phrase.push_str(word);
         phrase.push(' ');
     }
 
-    phrase
+    CommandResponse {
+        response: phrase,
+        questionable_output: true,
+    }
 }

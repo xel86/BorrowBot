@@ -7,7 +7,7 @@ use twitch_irc::message::PrivmsgMessage;
 use crate::bot::BorrowBot;
 use crate::commands::Command;
 use crate::database::DBController;
-use crate::types::{PermissionLevel, UserContext};
+use crate::types::{CommandResponse, PermissionLevel, UserContext};
 
 pub struct CommandHandler {
     pub command_list: HashMap<String, Command>,
@@ -30,7 +30,7 @@ impl CommandHandler {
         bot: Arc<BorrowBot>,
         user_context: &UserContext,
         msg: &PrivmsgMessage,
-    ) -> String {
+    ) -> CommandResponse {
         let mut split = msg.message_text.split(' ');
         let command_name = &split.next().unwrap()[1..];
 
@@ -39,10 +39,13 @@ impl CommandHandler {
                 .permissions
                 .satisfies(command.permission_needed)
             {
-                return format!(
-                    "Sorry, only {}s have access to the {} command",
-                    command.permission_needed, command_name
-                );
+                return CommandResponse {
+                    response: format!(
+                        "Sorry, only {}s have access to the {} command",
+                        command.permission_needed, command_name
+                    ),
+                    questionable_output: false,
+                };
             }
 
             if !self
@@ -66,10 +69,16 @@ impl CommandHandler {
 
                 return response;
             } else {
-                "".to_owned()
+                CommandResponse {
+                    response: "".to_owned(),
+                    questionable_output: false,
+                }
             }
         } else {
-            "".to_owned()
+            CommandResponse {
+                response: "".to_owned(),
+                questionable_output: false,
+            }
         }
     }
 

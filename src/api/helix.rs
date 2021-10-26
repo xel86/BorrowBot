@@ -65,7 +65,7 @@ impl Helix {
             format!("Bearer {}", access_token).parse().unwrap(),
         );
 
-        let client = Client::builder().default_headers(headers.clone()).build()?;
+        let client = Client::builder().default_headers(headers).build()?;
 
         Ok(Self {
             client,

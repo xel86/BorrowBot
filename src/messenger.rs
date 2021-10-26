@@ -6,7 +6,8 @@ use twitch_irc::login::StaticLoginCredentials;
 use twitch_irc::message::PrivmsgMessage;
 use twitch_irc::{SecureTCPTransport, TwitchIRCClient};
 
-use crate::types::UserContext;
+use crate::api::banphrase;
+use crate::types::{CommandResponse, UserContext};
 
 pub struct Messenger {
     irc_client: Arc<TwitchIRCClient<SecureTCPTransport, StaticLoginCredentials>>,
@@ -38,9 +39,11 @@ impl Messenger {
         &self,
         msg: &PrivmsgMessage,
         user_context: &UserContext,
-        command_response: &String,
+        command_response: &CommandResponse,
     ) {
-        if command_response.is_empty() {
+        let response = &command_response.response;
+        let questionable_output = command_response.questionable_output;
+        if response.is_empty() {
             return;
         }
 
@@ -59,11 +62,29 @@ impl Messenger {
 
         let response = format!(
             "@{}, {}{}",
-            user_context.login, command_response, same_message_modifier
+            user_context.login, response, same_message_modifier
         );
 
-        let mut queue = self.message_queue.lock().await;
-        (*queue).insert(0, (msg.channel_login.clone(), response));
+        if questionable_output {
+            if let Ok(is_banned) = banphrase::contains_banphrase(&response).await {
+                if !is_banned {
+                    let mut queue = self.message_queue.lock().await;
+                    (*queue).insert(0, (msg.channel_login.clone(), response));
+                }
+            } else {
+                let mut queue = self.message_queue.lock().await;
+                (*queue).insert(
+                    0,
+                    (
+                        msg.channel_login.clone(),
+                        "Couldn't reach banphrase API monkaS".to_owned(),
+                    ),
+                );
+            }
+        } else {
+            let mut queue = self.message_queue.lock().await;
+            (*queue).insert(0, (msg.channel_login.clone(), response));
+        }
     }
 
     // adhere to global 1 second cooldown
