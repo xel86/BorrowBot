@@ -11,11 +11,13 @@ use twitch_irc::{ClientConfig, SecureTCPTransport, TwitchIRCClient};
 use crate::api::APIController;
 use crate::commandhandler::CommandHandler;
 use crate::database::DBController;
+use crate::logging::LogController;
 use crate::messenger::Messenger;
 
 pub struct BorrowBot {
     irc_stream: Arc<Mutex<tokio::sync::mpsc::UnboundedReceiver<ServerMessage>>>,
     db: Arc<DBController>,
+    logs: Arc<LogController>,
     api: Arc<APIController>,
     commands: Arc<CommandHandler>,
     messenger: Arc<Messenger>,
@@ -35,6 +37,7 @@ impl BorrowBot {
             TwitchIRCClient::<SecureTCPTransport, StaticLoginCredentials>::new(config);
 
         let db = Arc::new(DBController::new().await);
+        let logs = Arc::new(LogController::new().await);
         let api = Arc::new(APIController::init().await);
         let commands = Arc::new(CommandHandler::new(Arc::clone(&db)).await);
         let messenger = Arc::new(Messenger::new(irc_client));
@@ -44,6 +47,7 @@ impl BorrowBot {
         Self {
             irc_stream: Arc::new(Mutex::new(irc_stream)),
             db,
+            logs,
             api,
             commands,
             messenger,
@@ -62,6 +66,10 @@ impl BorrowBot {
 
     pub fn db(&self) -> Arc<DBController> {
         Arc::clone(&self.db)
+    }
+
+    pub fn logs(&self) -> Arc<LogController> {
+        Arc::clone(&self.logs)
     }
 
     pub fn api(&self) -> Arc<APIController> {
@@ -83,6 +91,8 @@ impl BorrowBot {
         let join_handle = tokio::spawn(async move {
             while let Some(raw_message) = bot.stream().lock().await.recv().await {
                 if let ServerMessage::Privmsg(msg) = raw_message {
+                    bot.logs().log_message(&msg).await;
+
                     if msg.message_text.starts_with("&") {
                         let bot = Arc::clone(&bot);
                         let messenger = bot.messenger();

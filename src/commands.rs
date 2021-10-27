@@ -224,7 +224,7 @@ async fn join(
     {
         if let None = resp {
             return CommandResponse {
-                response: "Sorry, I couldn't find that channel {}".to_owned(),
+                response: "Sorry, I couldn't find that channel".to_owned(),
                 questionable_output: false,
             };
         }
