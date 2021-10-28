@@ -1,8 +1,8 @@
-use chrono::Utc;
 use std::collections::HashSet;
 use std::env;
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use tokio::sync::Mutex;
 use twitch_irc::login::StaticLoginCredentials;
 use twitch_irc::message::ServerMessage;
@@ -22,7 +22,7 @@ pub struct BorrowBot {
     commands: Arc<CommandHandler>,
     messenger: Arc<Messenger>,
     current_channels: Arc<Mutex<HashSet<String>>>,
-    pub start_time: chrono::naive::NaiveTime,
+    pub start_time: DateTime<Utc>,
 }
 
 impl BorrowBot {
@@ -42,7 +42,7 @@ impl BorrowBot {
         let commands = Arc::new(CommandHandler::new(Arc::clone(&db)).await);
         let messenger = Arc::new(Messenger::new(irc_client));
         let current_channels = Arc::new(Mutex::new(db.get_current_channels().await));
-        let start_time = Utc::now().time();
+        let start_time = Utc::now();
 
         Self {
             irc_stream: Arc::new(Mutex::new(irc_stream)),

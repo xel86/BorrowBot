@@ -86,7 +86,7 @@ async fn ping(
     bot: Arc<BorrowBot>,
     _: &UserContext,
 ) -> CommandResponse {
-    let uptime = chrono::Utc::now().time() - bot.start_time;
+    let uptime = chrono::Utc::now() - bot.start_time;
 
     let days = uptime.num_days();
     let hours = uptime.num_hours() - (days * 24);
