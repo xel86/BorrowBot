@@ -87,4 +87,49 @@ impl LogController {
             None
         }
     }
+
+    pub async fn get_random_message_from_username(
+        &self,
+        channel: &String,
+        username: &String,
+    ) -> Option<(i64, String)> {
+        let table_name = &format!("user_{}", channel.to_lowercase());
+
+        let query = format!(
+            "SELECT timestamp, message FROM {} WHERE username = $1 AND timestamp \
+            >= (SELECT random()*(max(timestamp)-min(timestamp)) + min(timestamp) FROM {}) ORDER BY timestamp LIMIT 1",
+            table_name, table_name
+        );
+
+        if let Ok(row) = self
+            .client
+            .query_one(&query[..], &[&username.to_lowercase()])
+            .await
+        {
+            let timestamp: i64 = row.get(0);
+            let message: String = row.get(1);
+            Some((timestamp, message))
+        } else {
+            None
+        }
+    }
+
+    pub async fn get_random_message(&self, channel: &String) -> Option<(i64, String, String)> {
+        let table_name = &format!("user_{}", channel.to_lowercase());
+
+        let query = format!(
+            "SELECT timestamp, username, message FROM {} WHERE timestamp \
+            >= (SELECT random()*(max(timestamp)-min(timestamp)) + min(timestamp) FROM {}) ORDER BY timestamp LIMIT 1",
+            table_name, table_name
+        );
+
+        if let Ok(row) = self.client.query_one(&query[..], &[]).await {
+            let timestamp: i64 = row.get(0);
+            let username: String = row.get(1);
+            let message: String = row.get(2);
+            Some((timestamp, username, message))
+        } else {
+            None
+        }
+    }
 }

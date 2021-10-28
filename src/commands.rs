@@ -44,6 +44,7 @@ impl Command {
             "uid" => uid(params, source_bot, user_context).await,
             "say" => say(params, source_bot, user_context).await,
             "lastmessage" => lastmessage(privmsg, params, source_bot, user_context).await,
+            "randmessage" => randmessage(privmsg, params, source_bot, user_context).await,
             _ => CommandResponse::new("".to_owned(), false),
         }
     }
@@ -399,6 +400,71 @@ async fn lastmessage(
             response: "Sorry, I didn't find any logs for that user in the selected channel!"
                 .to_owned(),
             questionable_output: false,
+        }
+    }
+}
+
+async fn randmessage(
+    privmsg: &PrivmsgMessage,
+    mut params: std::str::Split<'_, char>,
+    bot: Arc<BorrowBot>,
+    _: &UserContext,
+) -> CommandResponse {
+    let target_user = params.next().unwrap_or("").to_lowercase();
+
+    let mut target_channel = params.next().unwrap_or("").to_lowercase();
+    if target_channel.is_empty() {
+        target_channel = privmsg.channel_login.to_lowercase();
+    }
+
+    if target_user.is_empty() || target_user == "_" {
+        if let Some((timestamp, username, message)) =
+            bot.logs().get_random_message(&target_channel).await
+        {
+            let naive = NaiveDateTime::from_timestamp(timestamp, 0);
+            let datetime: DateTime<Utc> = DateTime::from_utc(naive, Utc);
+            let message = format!(
+                "({}) {}: {}",
+                datetime.format("%Y-%m-%d %H:%M"),
+                username,
+                message
+            );
+            CommandResponse {
+                response: message,
+                questionable_output: true,
+            }
+        } else {
+            CommandResponse {
+                response:
+                    "Sorry, something went wrong retrieving a random log from the current channel :("
+                        .to_owned(),
+                questionable_output: false,
+            }
+        }
+    } else {
+        if let Some((timestamp, message)) = bot
+            .logs()
+            .get_random_message_from_username(&target_channel, &target_user)
+            .await
+        {
+            let naive = NaiveDateTime::from_timestamp(timestamp, 0);
+            let datetime: DateTime<Utc> = DateTime::from_utc(naive, Utc);
+            let message = format!(
+                "({}) {}: {}",
+                datetime.format("%Y-%m-%d %H:%M"),
+                target_user,
+                message
+            );
+            CommandResponse {
+                response: message,
+                questionable_output: true,
+            }
+        } else {
+            CommandResponse {
+                response: "Sorry, I don't have logs of that user in the channel specified"
+                    .to_owned(),
+                questionable_output: false,
+            }
         }
     }
 }
