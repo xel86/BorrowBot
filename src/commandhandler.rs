@@ -55,7 +55,7 @@ impl CommandHandler {
                 .contains(&(user_context.uid, command_name.to_owned()))
             {
                 let response = command
-                    .lookup_and_run(command_name, split, bot, user_context)
+                    .lookup_and_run(command_name, msg, split, bot, user_context)
                     .await;
 
                 if user_context.permissions != PermissionLevel::Superuser {

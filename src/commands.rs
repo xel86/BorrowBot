@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use chrono::{DateTime, NaiveDateTime, Utc};
+use twitch_irc::message::PrivmsgMessage;
+
 use crate::bot::BorrowBot;
 use crate::types::{CommandResponse, PermissionLevel, UserContext};
 
@@ -24,6 +27,7 @@ impl Command {
     pub async fn lookup_and_run(
         &self,
         source_function: &str,
+        privmsg: &PrivmsgMessage,
         params: std::str::Split<'_, char>,
         source_bot: Arc<BorrowBot>,
         user_context: &UserContext,
@@ -39,6 +43,7 @@ impl Command {
             "leave" => leave(params, source_bot, user_context).await,
             "uid" => uid(params, source_bot, user_context).await,
             "say" => say(params, source_bot, user_context).await,
+            "lastmessage" => lastmessage(privmsg, params, source_bot, user_context).await,
             _ => CommandResponse::new("".to_owned(), false),
         }
     }
@@ -353,5 +358,47 @@ async fn say(
     CommandResponse {
         response: phrase,
         questionable_output: true,
+    }
+}
+
+async fn lastmessage(
+    privmsg: &PrivmsgMessage,
+    mut params: std::str::Split<'_, char>,
+    bot: Arc<BorrowBot>,
+    user: &UserContext,
+) -> CommandResponse {
+    let mut target_user = params.next().unwrap_or("").to_lowercase();
+    if target_user.is_empty() {
+        target_user = user.login.clone();
+    }
+
+    let mut target_channel = params.next().unwrap_or("").to_lowercase();
+    if target_channel.is_empty() {
+        target_channel = privmsg.channel_login.to_lowercase();
+    }
+
+    if let Some((timestamp, message)) = bot
+        .logs()
+        .get_last_message_from_username(&target_channel, &target_user)
+        .await
+    {
+        let naive = NaiveDateTime::from_timestamp(timestamp, 0);
+        let datetime: DateTime<Utc> = DateTime::from_utc(naive, Utc);
+        let message = format!(
+            "({}) {}: {}",
+            datetime.format("%Y-%m-%d %H:%M"),
+            target_user,
+            message
+        );
+        CommandResponse {
+            response: message,
+            questionable_output: true,
+        }
+    } else {
+        CommandResponse {
+            response: "Sorry, I didn't find any logs for that user in the selected channel!"
+                .to_owned(),
+            questionable_output: false,
+        }
     }
 }

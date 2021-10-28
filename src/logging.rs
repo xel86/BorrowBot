@@ -62,4 +62,29 @@ impl LogController {
                 .unwrap();
         }
     }
+
+    pub async fn get_last_message_from_username(
+        &self,
+        channel: &String,
+        username: &String,
+    ) -> Option<(i64, String)> {
+        let table_name = &format!("user_{}", channel.to_lowercase());
+
+        let query = format!(
+            "SELECT timestamp, message FROM {} WHERE username = $1 ORDER BY timestamp DESC LIMIT 1",
+            table_name
+        );
+
+        if let Ok(row) = self
+            .client
+            .query_one(&query[..], &[&username.to_lowercase()])
+            .await
+        {
+            let timestamp: i64 = row.get(0);
+            let message: String = row.get(1);
+            Some((timestamp, message))
+        } else {
+            None
+        }
+    }
 }
