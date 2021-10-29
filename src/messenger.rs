@@ -12,7 +12,6 @@ use crate::types::{CommandResponse, UserContext};
 pub struct Messenger {
     irc_client: Arc<TwitchIRCClient<SecureTCPTransport, StaticLoginCredentials>>,
     message_queue: Arc<Mutex<VecDeque<(String, String)>>>,
-    apply_same_message_modifier: Mutex<bool>,
 }
 
 impl Messenger {
@@ -20,7 +19,6 @@ impl Messenger {
         Messenger {
             irc_client: Arc::new(client),
             message_queue: Arc::new(Mutex::new(VecDeque::new())),
-            apply_same_message_modifier: Mutex::new(false),
         }
     }
 
@@ -47,23 +45,7 @@ impl Messenger {
             return;
         }
 
-        let mut apply = self.apply_same_message_modifier.lock().await;
-        let same_message_modifier = match *apply {
-            true => {
-                *apply = false;
-                "󠀀"
-            }
-            false => {
-                *apply = true;
-                ""
-            }
-        };
-        drop(apply);
-
-        let response = format!(
-            "@{}, {}{}",
-            user_context.login, response, same_message_modifier
-        );
+        let response = format!("@{}, {}", user_context.login, response);
 
         let ensured_response = if questionable_output {
             if let Ok(is_banned) = banphrase::contains_banphrase(&response).await {
@@ -88,11 +70,23 @@ impl Messenger {
         let message_queue = Arc::clone(&self.message_queue);
         let irc_client = Arc::clone(&self.irc_client);
         tokio::spawn(async move {
+            let mut apply_modifier = false;
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                 if let Some((target_channel, response)) = (*message_queue.lock().await).pop_front()
                 {
-                    irc_client.say(target_channel, response).await.unwrap();
+                    let same_message_modifier = if apply_modifier {
+                        apply_modifier = false;
+                        "󠀀"
+                    } else {
+                        apply_modifier = true;
+                        ""
+                    };
+
+                    irc_client
+                        .say(target_channel, response + same_message_modifier)
+                        .await
+                        .unwrap();
                 }
             }
         });
