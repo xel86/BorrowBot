@@ -1,5 +1,6 @@
+use core::convert::TryFrom;
 use tokio_postgres::NoTls;
-use twitch_irc::message::{AsRawIRC, PrivmsgMessage};
+use twitch_irc::message::{AsRawIRC, IRCMessage, PrivmsgMessage};
 
 pub struct LogController {
     client: tokio_postgres::Client,
@@ -22,16 +23,15 @@ impl LogController {
     }
 
     pub async fn log_message(&self, msg: &PrivmsgMessage) {
-        let table_name = &format!("user_{}", msg.channel_login.to_lowercase());
+        let table_name = &format!("channel_{}", msg.channel_login.to_lowercase());
 
         let timestamp = &msg.server_timestamp.timestamp();
         let user_id: &i32 = &msg.sender.id.parse().unwrap();
         let username = &msg.sender.login;
-        let message = &msg.message_text;
-        let raw_irc_message = &msg.source.as_raw_irc();
+        let message = &msg.source.as_raw_irc();
 
         let insert_statement = format!(
-            "INSERT INTO {} (timestamp, user_id, username, message, raw_irc_message) VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO {} (timestamp, user_id, username, message) VALUES ($1, $2, $3, $4)",
             table_name
         );
 
@@ -39,12 +39,12 @@ impl LogController {
             .client
             .execute(
                 &insert_statement[..],
-                &[timestamp, user_id, username, message, raw_irc_message],
+                &[timestamp, user_id, username, message],
             )
             .await
         {
             let create_statement = format!(
-                "CREATE TABLE {} (timestamp bigint, user_id int, username TEXT, message TEXT, raw_irc_message TEXT)",
+                "CREATE TABLE {} (timestamp bigint, user_id int, username TEXT, message TEXT)",
                 table_name
             );
 
@@ -56,7 +56,7 @@ impl LogController {
             self.client
                 .execute(
                     &insert_statement[..],
-                    &[timestamp, user_id, username, message, raw_irc_message],
+                    &[timestamp, user_id, username, message],
                 )
                 .await
                 .unwrap();
@@ -68,7 +68,7 @@ impl LogController {
         channel: &String,
         username: &String,
     ) -> Option<(i64, String)> {
-        let table_name = &format!("user_{}", channel.to_lowercase());
+        let table_name = &format!("channel_{}", channel.to_lowercase());
 
         let query = format!(
             "SELECT timestamp, message FROM {} WHERE username = $1 ORDER BY timestamp DESC LIMIT 1",
@@ -82,6 +82,9 @@ impl LogController {
         {
             let timestamp: i64 = row.get(0);
             let message: String = row.get(1);
+            let message = PrivmsgMessage::try_from(IRCMessage::parse(&message[..]).unwrap())
+                .unwrap()
+                .message_text;
             Some((timestamp, message))
         } else {
             None
@@ -93,7 +96,7 @@ impl LogController {
         channel: &String,
         username: &String,
     ) -> Option<(i64, String)> {
-        let table_name = &format!("user_{}", channel.to_lowercase());
+        let table_name = &format!("channel_{}", channel.to_lowercase());
 
         let query = format!(
             "SELECT timestamp, message FROM {} WHERE username = $1 AND timestamp \
@@ -108,6 +111,9 @@ impl LogController {
         {
             let timestamp: i64 = row.get(0);
             let message: String = row.get(1);
+            let message = PrivmsgMessage::try_from(IRCMessage::parse(&message[..]).unwrap())
+                .unwrap()
+                .message_text;
             Some((timestamp, message))
         } else {
             None
@@ -115,7 +121,7 @@ impl LogController {
     }
 
     pub async fn get_random_message(&self, channel: &String) -> Option<(i64, String, String)> {
-        let table_name = &format!("user_{}", channel.to_lowercase());
+        let table_name = &format!("channel_{}", channel.to_lowercase());
 
         let query = format!(
             "SELECT timestamp, username, message FROM {} WHERE timestamp \
@@ -127,6 +133,9 @@ impl LogController {
             let timestamp: i64 = row.get(0);
             let username: String = row.get(1);
             let message: String = row.get(2);
+            let message = PrivmsgMessage::try_from(IRCMessage::parse(&message[..]).unwrap())
+                .unwrap()
+                .message_text;
             Some((timestamp, username, message))
         } else {
             None

@@ -77,7 +77,7 @@ impl Messenger {
                 {
                     let same_message_modifier = if apply_modifier {
                         apply_modifier = false;
-                        "󠀀"
+                        " 󠀀"
                     } else {
                         apply_modifier = true;
                         ""
