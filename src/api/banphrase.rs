@@ -1,5 +1,6 @@
 use reqwest::Client;
 use serde::Deserialize;
+use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
 pub struct BanphraseResponse {
@@ -22,9 +23,12 @@ pub struct BanphraseData {
 pub async fn contains_banphrase(message: &str) -> Result<bool, reqwest::Error> {
     let client = Client::new();
 
+    let mut data = HashMap::new();
+    data.insert("message", message);
+
     let resp = client
         .post("https://forsen.tv/api/v1/banphrases/test")
-        .query(&[("message", message)])
+        .json(&data)
         .send()
         .await?
         .json::<BanphraseResponse>()

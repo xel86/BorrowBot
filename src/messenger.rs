@@ -11,7 +11,7 @@ use crate::types::{CommandResponse, UserContext};
 
 pub struct Messenger {
     irc_client: Arc<TwitchIRCClient<SecureTCPTransport, StaticLoginCredentials>>,
-    message_queue: Arc<Mutex<VecDeque<(String, String)>>>,
+    pub message_queue: Arc<Mutex<VecDeque<(String, String)>>>,
 }
 
 impl Messenger {
